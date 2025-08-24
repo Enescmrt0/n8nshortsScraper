@@ -1,0 +1,93 @@
+{
+  "name": "Telegram to Apify to Gemini Video Analysis",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "name": "Telegram Trigger",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/streamers~youtube-shorts-scraper/run-sync-get-dataset-items?token=YOUR_APIFY_TOKEN",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "bodyParametersJson": "={\"channels\": [ $json[\"text\"].split(\" \")[1] ], \"maxItems\": 10}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [300, 0],
+      "name": "Apify Fetch Videos",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YOUR_HTTP_HEADER_CREDENTIAL_ID",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "analyze",
+        "modelId": {
+          "value": "models/gemini-2.5-flash",
+          "mode": "list"
+        },
+        "text": "=SYSTEM ROLE\nYou are an expert short-form video analyst. Your job is to watch the entire input video and produce a clean, structured analysis that another model will use to generate character-based podcast-style commentary. Do NOT write any character lines. Only provide analysis, cues, and triggers.\n\nOUTPUT LANGUAGE\nWrite all output in English.\n\nGOALS\nSegment the video, key visuals/audio, commentary triggers, hooks, highlights.\n\nREQUIRED OUTPUT FORMAT: JSON\n{\n  \"metadata\": {...},\n  \"personas\": [...],\n  \"segments\": [...],\n  \"highlights\": {...}\n}\n\nPROCESS\nWatch full video, segment, capture details, generate triggers.",
+        "videoUrls": "={{ $json.videoUrl || $json.mediaUrls[0] }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [600, 0],
+      "name": "Analyze Video (Gemini)",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_GOOGLE_PALM_CREDENTIAL_ID",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Apify Fetch Videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify Fetch Videos": {
+      "main": [
+        [
+          {
+            "node": "Analyze Video (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  ],
+  "active": false,
+  "settings": {},
+  "id": "telegram-apify-gemini-workflow"
+}
